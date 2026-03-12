@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>乖，睡觉啦 🌙</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+
+#splash{
+  position:fixed;top:0;left:0;width:100vw;height:100vh;
+  background:linear-gradient(180deg,#F0D8FF,#D6EAFF);
+  z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;
+  transition:opacity 1s;
+}
+#splash.hide{opacity:0;pointer-events:none}
+#splash-img{width:260px;height:260px;object-fit:contain;border-radius:24px}
+#splash-text{font-size:26px;color:#7A9CD6;font-weight:bold}
+
+body{
+  background:linear-gradient(180deg,#F0D8FF,#D6EAFF,#F0FCFF);
+  min-height:100vh;text-align:center;padding:30px 20px;color:#444;
+}
+
+.title{font-size:28px;color:#7A9CD6;margin-bottom:6px}
+.sub-title{font-size:14px;color:#999;margin-bottom:20px}
+
+.card{
+  background:#fff;padding:16px;border-radius:20px;
+  box-shadow:0 6px 16px rgba(122,156,214,0.12);
+  margin:12px auto;max-width:340px;
+}
+
+.label{font-size:14px;color:#7A9CD6;margin-bottom:6px}
+input.time{
+  width:100%;padding:10px 12px;border:1px solid #dde6f7;
+  border-radius:12px;text-align:center;font-size:16px;margin-top:6px;
+}
+
+.btn{
+  background:linear-gradient(to right,#a8c0ff,#c4f1ff);
+  color:#fff;border:none;padding:16px 32px;border-radius:50px;
+  font-size:16px;box-shadow:0 8px 20px rgba(168,192,255,0.3);
+  cursor:pointer;margin:6px;width:140px;
+}
+.btn:active{transform:scale(.96)}
+
+.msg{margin:10px 0;font-size:15px;color:#7A9CD6}
+.analysis{text-align:left;font-size:14px;line-height:1.5;color:#555}
+.analysis b{color:#7A9CD6}
+
+.record-title{font-size:15px;color:#7A9CD6;margin:20px 0 8px}
+.record-list{max-width:340px;margin:0 auto}
+.record-item{
+  background:#fff;padding:10px 14px;border-radius:16px;
+  margin-bottom:6px;font-size:13px;text-align:left;color:#666;
+  position:relative;
+}
+.del-btn{
+  position:absolute;right:8px;top:8px;
+  background:#ff6b6b;color:#fff;
+  border:none;border-radius:8px;
+  padding:2px 6px;font-size:12px;
+  cursor:pointer;
+}
+
+/* 日历样式 */
+.calendar-box{margin-top:10px}
+.calendar-week{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  font-size:12px;color:#999;margin-bottom:4px;
+}
+.calendar{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
+}
+.calendar-day{
+  aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;
+  border-radius:8px;font-size:12px;
+}
+.day-early{background:#d1f7e4;color:#27a16e}
+.day-late{background:#ffe3e3;color:#e53935}
+.day-empty{background:#f0f4ff;color:#999}
+
+.stat-row{
+  display:flex;justify-content:space-between;
+  margin-top:8px;font-size:13px;
+}
+.stat-item{text-align:center;flex:1}
+</style>
+</head>
+
+<body>
+
+<div id="splash">
+  < img id="splash-img" alt="熊猫睡觉">
+  <div id="splash-text">乖，睡觉啦</div>
+</div>
+
+<h1 class="title">乖，睡觉啦 🌙</h1>
+<p class="sub-title">每天都要好好睡觉哦</p >
+
+<div class="card">
+  <div class="label">目标睡觉时间：22:30</div>
+</div>
+
+<div style="display:flex;justify-content:center;gap:10px;margin:10px 0">
+  <button class="btn" onclick="sleepIn()">🌙 睡觉打卡</button>
+  <button class="btn" onclick="wakeIn()">☀️ 起床打卡</button>
+</div>
+
+<div class="msg" id="msg"></div>
+
+<!-- 日历 -->
+<div class="card">
+  <div class="label">本月睡眠日历</div>
+  <div class="calendar-week">
+    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+  </div>
+  <div class="calendar" id="calendar"></div>
+</div>
+
+<div class="card analysis" id="analysis"></div>
+
+<h3 class="record-title">📜 最近记录</h3>
+<div id="recordList" class="record-list"></div>
+
+<script>
+// 固定睡觉目标时间 22:30
+const TARGET_SLEEP_HOUR = 22
+const TARGET_SLEEP_MINUTE = 30
+
+// 启动页
+setTimeout(()=>{
+  document.getElementById('splash').classList.add('hide')
+}, 2000)
+
+function get(key){
+  const d=localStorage.getItem(key)
+  return d?JSON.parse(d):null
+}
+function set(key,val){
+  localStorage.setItem(key,JSON.stringify(val))
+}
+
+const quotes = [
+  "今天辛苦啦，好好睡觉～",
+  "晚安，明天也要可可爱爱",
+  "关掉手机，世界安静啦",
+  "熊猫都睡啦，你也快睡吧",
+  "好好睡觉，是治愈一切的良药"
+]
+
+function randMsg(){
+  return quotes[Math.floor(Math.random()*quotes.length)]
+}
+
+// 睡觉打卡：记录睡觉时间并判断早睡/晚睡
+function sleepIn(){
+  const now = new Date()
+  const sleepTime = now.getTime()
+  const dateStr = now.toISOString().split('T')[0]
+  
+  // 判断是否早睡：早于等于22:30为早睡
+  const isEarly = 
+    (now.getHours() < TARGET_SLEEP_HOUR) || 
+    (now.getHours() === TARGET_SLEEP_HOUR && now.getMinutes() <= TARGET_SLEEP_MINUTE)
+  
+  set("lastSleepData", {
+    time: sleepTime,
+    date: dateStr,
+    isEarly: isEarly
+  })
+  
+  document.getElementById("msg").innerText = "✅ 睡觉啦！" + randMsg() + `（${isEarly?"早睡":"晚睡"}）`
+  refresh()
+}
+
+// 起床打卡
+function wakeIn(){
+  const sleepData = get("lastSleepData")
+  if(!sleepData){
+    document.getElementById("msg").innerText="请先睡觉打卡～"
+    return
+  }
+  
+  const now = new Date().getTime()
+  const diff = now - sleepData.time
+  const hour = (diff/3600000).toFixed(1)
+
+  const record = {
+    id: Date.now(),
+    date: sleepData.date,
+    sleep: new Date(sleepData.time).toLocaleString(),
+    wake: new Date(now).toLocaleString(),
+    hour: hour,
+    isEarly: sleepData.isEarly
+  }
+  
+  const list = JSON.parse(localStorage.getItem("records")||"[]")
+  list.push(record)
+  localStorage.setItem("records",JSON.stringify(list))
+  
+  localStorage.removeItem("lastSleepData")
+
+  document.getElementById("msg").innerText=`☀️ 起床啦！睡了 ${hour} 小时`
+  refresh()
+}
+
+// 删除记录
+function deleteRecord(id){
+  if(!confirm('确定删除该条记录吗？')) return
+  let list = JSON.parse(localStorage.getItem("records")||"[]")
+  list = list.filter(item => item.id !== id)
+  localStorage.setItem("records",JSON.stringify(list))
+  refresh()
+}
+
+// 渲染日历
+function renderCalendar(){
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month+1, 0)
+  const firstWeekDay = firstDay.getDay()
+  const daysCount = lastDay.getDate()
+  
+  const calendarEl = document.getElementById('calendar')
+  calendarEl.innerHTML = ''
+  
+  const records = JSON.parse(localStorage.getItem("records")||"[]")
+  
+  // 空白填充
+  for(let i=0; i<firstWeekDay; i++){
+    const div = document.createElement('div')
+    div.className = 'calendar-day day-empty'
+    calendarEl.appendChild(div)
+  }
+  
+  // 日期
+  for(let d=1; d<=daysCount; d++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+    const record = records.find(r => r.date === dateStr)
+    
+    const div = document.createElement('div')
+    div.className = 'calendar-day'
+    div.textContent = d
+    
+    if(record){
+      div.classList.add(record.isEarly ? 'day-early' : 'day-late')
+    }else{
+      div.classList.add('day-empty')
+    }
+    
+    calendarEl.appendChild(div)
+  }
+}
+
+// 统计数据
+function getStat(){
+  const records = JSON.parse(localStorage.getItem("records")||"[]")
+  const now = new Date()
+  const curYear = now.getFullYear()
+  const curMonth = now.getMonth()
+  
+  const totalEarly = records.filter(r=>r.isEarly).length
+  
+  const monthRecords = records.filter(r=>{
+    const d = new Date(r.date)
+    return d.getFullYear()===curYear && d.getMonth()===curMonth
+  })
+  
+  const monthEarly = monthRecords.filter(r=>r.isEarly).length
+  const monthLate = monthRecords.filter(r=>!r.isEarly).length
+  
+  return {totalEarly, monthEarly, monthLate}
+}
+
+// 刷新
+function refresh(){
+  const list = JSON.parse(localStorage.getItem("records")||"[]")
+  const stat = getStat()
+  
+  // 记录列表（带删除）
+  let html=""
+  list.slice(-7).reverse().forEach(i=>{
+    html+=`
+    <div class="record-item">
+      <button class="del-btn" onclick="deleteRecord(${i.id})">删</button>
+      日期：${i.date}<br>
+      睡：${i.sleep}<br>
+      起：${i.wake}<br>
+      时长：${i.hour}h | ${i.isEarly?'✅早睡':'❌晚睡'}
+    </div>`
+  })
+  document.getElementById("recordList").innerHTML = html || '<div class="record-item">暂无记录</div>'
+
+  // 报告
+  if(list.length===0){
+    document.getElementById("analysis").innerHTML=`
+      <b>📊 睡眠报告</b><br>
+      暂无记录，今晚开始早睡吧～<br>
+      <div class="stat-row">
+        <div class="stat-item">累计早睡：${stat.totalEarly}</div>
+        <div class="stat-item">当月早睡：${stat.monthEarly}</div>
+        <div class="stat-item">当月晚睡：${stat.monthLate}</div>
+      </div>
+    `
+    renderCalendar()
+    return
+  }
+
+  const total = list.length
+  const avg = (list.reduce((s,i)=>s+parseFloat(i.hour),0)/total).toFixed(1)
+  const last = list[list.length-1]
+  let level="优秀"
+  if(last.hour<6) level="有点困"
+  else if(last.hour<8) level="良好"
+
+  let ana=`
+    <b>📊 睡眠报告</b><br>
+    累计打卡：${total} 天<br>
+    平均睡眠：${avg} 小时<br>
+    最近状态：<b>${level}</b><br>
+    目标作息：22:30 睡觉
+  `
+  
+  ana += `
+  <div class="stat-row">
+    <div class="stat-item"><b>累计早睡</b><br>${stat.totalEarly}</div>
+    <div class="stat-item"><b>当月早睡</b><br>${stat.monthEarly}</div>
+    <div class="stat-item"><b>当月晚睡</b><br>${stat.monthLate}</div>
+  </div>
+  `
+  
+  document.getElementById("analysis").innerHTML = ana
+  renderCalendar()
+}
+
+// 提醒
+setInterval(()=>{
+  const now = new Date()
+  const h = now.getHours()
+  const m = now.getMinutes()
+  if(h === TARGET_SLEEP_HOUR && m === TARGET_SLEEP_MINUTE){
+    alert("😴 到睡觉时间啦，快去打卡吧～")
+  }
+},60000)
+
+refresh()
+</script>
+</body>
+</html>
